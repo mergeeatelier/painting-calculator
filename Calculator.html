@@ -553,6 +553,8 @@
 
     // notifySiblings=true เมื่อรายการนี้เปลี่ยนค่าเอง (ต้องอัปเดตยอดขั้นต่ำของรายการอื่นตาม)
     // notifySiblings=false เมื่อถูกเรียกให้รีเฟรชเพราะรายการอื่นเปลี่ยน (กันการวนเรียกไม่รู้จบ)
+    // ยิงไป Apps Script (calculatePrice) ทุกครั้งที่คำนวณ เหมือนเดิมก่อนหน้านี้ — runCalculation()
+    // ด้านบนมี debounce 200ms คอยกันไม่ให้ยิงรัวทุกตัวอักษรที่พิมพ์อยู่แล้ว
     function doCalc(id, notifySiblings){
       const errEl = document.getElementById('err-' + id);
       if (!errEl) return; // ถูกลบไปแล้ว
