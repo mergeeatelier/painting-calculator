@@ -25,9 +25,10 @@
     label{display:block; font-size:13px; font-weight:600; margin:14px 0 6px;}
     label:first-child{margin-top:0;}
     label .th{display:block; font-size:11px; font-weight:400; color:var(--muted); margin-top:2px;}
+    /* font-size 16px ขึ้นไป กัน iOS Safari ซูมเข้าอัตโนมัติตอนแตะช่องกรอกข้อมูล */
     select,input[type=number],input[type=text],textarea{
       width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
-      font-size:14px; background:#fffdf9; color:var(--ink); font-family:inherit;
+      font-size:16px; background:#fffdf9; color:var(--ink); font-family:inherit;
     }
     textarea{resize:vertical; min-height:70px;}
     .row{display:flex; gap:12px;}
@@ -87,8 +88,9 @@
     #gate .app-name{font-size:15px; font-weight:700; color:var(--ink); margin:0 0 18px;}
     #gate .gate-hint{font-size:13px; color:var(--muted); margin-bottom:16px;}
     #gate input[type=password]{
+      /* font-size 16px ขึ้นไป กัน iOS Safari ซูมเข้าอัตโนมัติตอนแตะช่องกรอกรหัสผ่าน */
       width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px;
-      font-size:14px; text-align:center; margin-bottom:14px; background:#fffdf9;}
+      font-size:16px; text-align:center; margin-bottom:14px; background:#fffdf9;}
     #gate button{width:100%; padding:12px; background:#171a2b; color:#fff; border:none;
       border-radius:10px; font-size:15px; font-weight:600; cursor:pointer;}
     #gate button:hover{opacity:.92;}
