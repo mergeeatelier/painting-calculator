@@ -187,11 +187,16 @@
       return r.text().then(function(text){
         try { return JSON.parse(text); }
         catch (err) {
+          const detail = '<details style="margin-top:8px;"><summary style="cursor:pointer;">ดูรายละเอียดที่เซิร์ฟเวอร์ตอบกลับ</summary>' +
+            '<div style="font-size:11px;word-break:break-all;margin-top:6px;">HTTP ' + r.status + ' · redirected: ' + r.redirected +
+            '<br>final URL: ' + r.url + '<br><br>' + String(text).replace(/</g,'&lt;').slice(0, 500) + '</div></details>';
           if (/accounts\.google\.com|ต้องการสิทธิ์|Authorization|Sign in/i.test(text))
-            throw new Error('เซิร์ฟเวอร์ขอให้ล็อกอิน/อนุญาตสิทธิ์ — เปิด ' + API_URL + ' ในแท็บใหม่ กด Authorize แล้วตั้ง Deploy > Who has access = Anyone');
+            throw new Error('เซิร์ฟเวอร์ขอให้ล็อกอิน/อนุญาตสิทธิ์ — กด Authorize แล้วตั้ง Deploy > Who has access = Anyone' + detail);
+          if (r.status === 404)
+            throw new Error('ไม่พบ deployment นี้ (HTTP 404)' + detail);
           if (/<html/i.test(text))
-            throw new Error('เซิร์ฟเวอร์ตอบกลับเป็นหน้า HTML ไม่ใช่ JSON (HTTP ' + r.status + ') — แปลว่า deployment ยังเป็นโค้ดเวอร์ชันเก่า ให้กด Deploy > Manage deployments > แก้ไข > Version: New version');
-          throw new Error('อ่านคำตอบจากเซิร์ฟเวอร์ไม่ได้: ' + text.slice(0, 120));
+            throw new Error('เซิร์ฟเวอร์ตอบกลับเป็นหน้า HTML ไม่ใช่ JSON (HTTP ' + r.status + ')' + detail);
+          throw new Error('อ่านคำตอบจากเซิร์ฟเวอร์ไม่ได้' + detail);
         }
       });
     }
