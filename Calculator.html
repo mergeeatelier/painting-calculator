@@ -123,94 +123,6 @@
   </style>
 </head>
 <body>
-<!-- ===== Mergee Auth Gate (Google Sign-In) — เพิ่มโดย Claude ===== -->
-<!-- ชั้นนี้แยกต่างหากจากด่านรหัสผ่านด้านล่าง (#gate) — z-index สูงกว่ามาก จึงบังทุกอย่างรวม
-     ทั้งด่านรหัสผ่านไว้จนกว่าจะล็อกอิน Google ผ่านก่อน แล้วค่อยเจอด่านรหัสผ่านตามปกติ ซึ่งตอนนี้ไม่จำ
-     การปลดล็อกอีกต่อไป ต้องใส่รหัสผ่านใหม่ทุกครั้ง แม้จะเพิ่งผ่าน Google Sign-In มาก็ตาม — การจำ 8 ชม.
-     มีผลกับ Google Sign-In เท่านั้น สองด่านนี้เป็นอิสระต่อกัน -->
-<div id="mergee-auth-gate" style="position:fixed;inset:0;background:#1a1a2e;display:flex;align-items:center;justify-content:center;z-index:999999;padding:20px;font-family:'Sarabun',sans-serif">
-  <div style="background:#fff;border-radius:16px;padding:32px 28px;max-width:340px;width:100%;text-align:center">
-    <div style="font-size:22px;font-weight:600;color:#1a1a2e;margin-bottom:6px">Mergee</div>
-    <div style="font-size:13px;color:#888;margin-bottom:22px">สำหรับพนักงานที่ได้รับอนุญาตเท่านั้น</div>
-    <div id="mergee-g-signin" style="display:flex;justify-content:center"></div>
-    <div id="mergee-auth-loading" style="display:none;color:#888;font-size:13px;margin-top:14px">กำลังตรวจสอบสิทธิ์...</div>
-    <div id="mergee-auth-error" style="display:none;color:#c62828;font-size:13px;margin-top:14px">อีเมลนี้ไม่มีสิทธิ์เข้าถึงหน้านี้</div>
-  </div>
-</div>
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<script>
-(function(){
-  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxwzXSMXQD1AFjCDTTFm0iZ4eV4Bhi8qzkZI5Te3v4TFz01TxTu7xVET_OaKGv22R2k/exec';
-  var CLIENT_ID = '541429667442-6im11d4rrg09m95suab32vcj7kf3lpf1.apps.googleusercontent.com';
-  var SESSION_KEY = 'mergee_auth_expiry';
-  var SESSION_DURATION_MS = 8 * 60 * 60 * 1000; // จำการล็อกอินไว้ 8 ชั่วโมง ใช้ร่วมกันทุกไฟล์ในโดเมนนี้
-
-  function isSessionValid(){
-    var exp = parseInt(localStorage.getItem(SESSION_KEY) || '0', 10);
-    return exp > Date.now();
-  }
-
-  function markSessionAuthorized(){
-    localStorage.setItem(SESSION_KEY, String(Date.now() + SESSION_DURATION_MS));
-  }
-
-  // เคยล็อกอินผ่านมาแล้วในเบราว์เซอร์นี้ และยังไม่หมดอายุ ข้ามเกตไปเลย
-  if (isSessionValid()) {
-    var existingGate = document.getElementById('mergee-auth-gate');
-    if (existingGate) existingGate.style.display = 'none';
-    return;
-  }
-
-  function showError(){
-    document.getElementById('mergee-auth-loading').style.display = 'none';
-    document.getElementById('mergee-auth-error').style.display = 'block';
-    document.getElementById('mergee-g-signin').style.display = 'flex';
-  }
-
-  function handleCredentialResponse(response){
-    document.getElementById('mergee-auth-error').style.display = 'none';
-    document.getElementById('mergee-g-signin').style.display = 'none';
-    document.getElementById('mergee-auth-loading').style.display = 'block';
-    fetch(APPS_SCRIPT_URL, {
-      method: 'POST',
-      body: JSON.stringify({ token: response.credential })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      document.getElementById('mergee-auth-loading').style.display = 'none';
-      if (data && data.authorized) {
-        markSessionAuthorized();
-        var gate = document.getElementById('mergee-auth-gate');
-        if (gate) gate.style.display = 'none';
-      } else {
-        showError();
-      }
-    })
-    .catch(function(){ showError(); });
-  }
-
-  function initGate(){
-    // สคริปต์ของ Google โหลดแบบ async/defer เวลาไม่แน่นอน — ต้องรอจนกว่า
-    // window.google.accounts.id จะพร้อมจริงๆ ไม่งั้นปุ่มจะไม่ขึ้นแบบเงียบๆ
-    if (window.google && google.accounts && google.accounts.id) {
-      google.accounts.id.initialize({
-        client_id: CLIENT_ID,
-        callback: handleCredentialResponse
-      });
-      google.accounts.id.renderButton(
-        document.getElementById('mergee-g-signin'),
-        { theme: 'outline', size: 'large', text: 'signin_with' }
-      );
-    } else {
-      setTimeout(initGate, 150);
-    }
-  }
-
-  initGate();
-})();
-</script>
-<!-- ===== จบ Mergee Auth Gate ===== -->
-
   <div id="gate">
     <div class="gate-card">
       <div id="pwStep">
@@ -269,18 +181,117 @@
     const API_URL = 'https://script.google.com/macros/s/AKfycbxKb0Gvil8mTxiGY6pI3WJoQilnVSIrjgY_fHk6yN5vbqsT0Oo6gATFQHHydveVoW2r/exec';
     const API_KEY = 'PAINTINGASSESSMENTCALCULATOR01';
 
+    // แปลง response เป็น JSON พร้อมบอกสาเหตุจริงเมื่อไม่ใช่ JSON (Apps Script ส่งหน้า HTML
+    // เวลา: ยังไม่ได้อนุญาตสิทธิ์ / deployment เก่า / ตั้ง Who has access ไม่เป็น Anyone)
+    function parseApiResponse(r){
+      return r.text().then(function(text){
+        try { return JSON.parse(text); }
+        catch (err) {
+          if (/accounts\.google\.com|ต้องการสิทธิ์|Authorization|Sign in/i.test(text))
+            throw new Error('เซิร์ฟเวอร์ขอให้ล็อกอิน/อนุญาตสิทธิ์ — เปิด ' + API_URL + ' ในแท็บใหม่ กด Authorize แล้วตั้ง Deploy > Who has access = Anyone');
+          if (/<html/i.test(text))
+            throw new Error('เซิร์ฟเวอร์ตอบกลับเป็นหน้า HTML ไม่ใช่ JSON (HTTP ' + r.status + ') — แปลว่า deployment ยังเป็นโค้ดเวอร์ชันเก่า ให้กด Deploy > Manage deployments > แก้ไข > Version: New version');
+          throw new Error('อ่านคำตอบจากเซิร์ฟเวอร์ไม่ได้: ' + text.slice(0, 120));
+        }
+      });
+    }
+
     function callApi(action, payload){
       // action อ่านอย่างเดียว ใช้ GET เพื่อเลี่ยง CORS preflight
-      if (action === 'getFormOptions' || action === 'calculatePrice') {
-        const params = new URLSearchParams({ action, key: API_KEY, payload: JSON.stringify(payload || {}) });
-        return fetch(API_URL + '?' + params.toString()).then(r=>r.json());
+      const p = (action === 'getFormOptions' || action === 'calculatePrice')
+        ? fetch(API_URL + '?' + new URLSearchParams({ action, key: API_KEY, payload: JSON.stringify(payload || {}) }).toString())
+        // action เขียนข้อมูล ใช้ POST + text/plain เพื่อเลี่ยง CORS preflight (Apps Script ไม่รองรับ doOptions)
+        : fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action, key: API_KEY, payload: payload || {} })
+          });
+      return p.then(parseApiResponse, function(netErr){
+        throw new Error('ติดต่อเซิร์ฟเวอร์ไม่ได้ (' + netErr.message + ') — URL ผิด, deployment ถูกลบ, หรือ Who has access ไม่ได้ตั้งเป็น Anyone');
+      });
+    }
+
+    // ===== คำนวณราคาฝั่ง client (ไม่ยิงไป Apps Script ทุกครั้งที่พิมพ์) =====
+    // ใช้ข้อมูล tier/rate ที่ดึงมาจาก getFormOptions() ครั้งเดียวตอนเปิดหน้า (เก็บใน FORM_DATA)
+    // สูตรคำนวณตรงนี้ต้อง sync กับ calculatePrice() ฝั่ง Code.gs เสมอ — ฝั่ง server ยังเป็นตัวคำนวณจริง
+    // ตอนกด Preview/Print PDF (createQuotationPdf เรียก calculatePrice ฝั่ง server อีกที ไม่เชื่อเลขจาก client)
+    function round2(n){ return Math.round((Number(n) || 0) * 100) / 100; }
+
+    function lookupTier(tiers, key){
+      for (let i = 0; i < tiers.length; i++){
+        const t = tiers[i];
+        if (key >= t.min && key <= t.max) return t.value;
       }
-      // action เขียนข้อมูล ใช้ POST + text/plain เพื่อเลี่ยง CORS preflight (Apps Script ไม่รองรับ doOptions)
-      return fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, key: API_KEY, payload: payload || {} })
-      }).then(r=>r.json());
+      return tiers.length ? tiers[tiers.length - 1].value : 0;
+    }
+
+    function calculatePriceLocal(input){
+      const p = FORM_DATA[input.product];
+      if (!p) throw new Error('ไม่รู้จักประเภทงานนี้');
+
+      const width = Number(input.width) || 0;
+      const height = Number(input.height) || 0;
+      const size = round2(width * height);
+
+      const pricePerCm2 = lookupTier(p.sizeTiers || [], size);
+      const genericPrice = round2(size * pricePerCm2);
+
+      const materialRate = (p.material && p.material[input.material]) || 0;
+      const difficultyRate = (p.difficulty && p.difficulty[input.difficulty]) || 0;
+      const materialCost = round2(genericPrice * materialRate);
+      const difficultyCost = round2(genericPrice * difficultyRate);
+
+      const tierKeyForAddon = p.addonTierBy === 'genericPrice' ? genericPrice : size;
+
+      let fastTrackCost = 0;
+      if (input.fastTrack) {
+        const v = lookupTier(p.fastTrackTiers || [], tierKeyForAddon);
+        fastTrackCost = v < 1 ? round2(genericPrice * v) : round2(v);
+      }
+      let frameCost = 0;
+      if (input.frame) {
+        const v = lookupTier(p.frameTiers || [], tierKeyForAddon);
+        frameCost = v < 1 ? round2(genericPrice * v) : round2(v);
+      }
+
+      const subtotalBeforeMembership = round2(
+        genericPrice + materialCost + difficultyCost + fastTrackCost + frameCost
+      );
+
+      const m = (p.membership && p.membership[input.membership]) || { percent: 0, fee: 0, minSubtotal: 0 };
+      const otherItemsSubtotal = Number(input.otherItemsSubtotal) || 0;
+      const orderSubtotal = round2(subtotalBeforeMembership + otherItemsSubtotal);
+      const meetsThreshold = !m.minSubtotal || orderSubtotal >= m.minSubtotal;
+      const membershipDiscount = round2(subtotalBeforeMembership * (meetsThreshold ? m.percent : 0));
+      const membershipFee = meetsThreshold ? (m.fee || 0) : 0;
+      const subtotalAfterMembership = round2(
+        subtotalBeforeMembership - membershipDiscount + membershipFee
+      );
+
+      let deliveryCost = 0;
+      const isMember = !!input.membership && String(input.membership).trim().toLowerCase() !== 'none member';
+      if (input.deliveryZone === 'bangkok') {
+        const baseRate = p.deliveryBangkokRate || 0;
+        deliveryCost = isMember ? round2(baseRate * 0.5) : baseRate;
+      } else if (input.deliveryZone === 'domestic') {
+        const actualCost = Number(input.domesticActualCost) || 0;
+        deliveryCost = isMember ? round2(actualCost * 0.5) : actualCost;
+      } else if (input.deliveryZone === 'international') {
+        deliveryCost = Number(input.internationalActualCost) || 0;
+      }
+
+      const installationCost = input.installation ? (Number(input.installationActualCost) || 0) : 0;
+
+      const total = round2(subtotalAfterMembership + deliveryCost + installationCost);
+
+      return {
+        size, pricePerCm2, genericPrice,
+        materialCost, difficultyCost, fastTrackCost, frameCost,
+        subtotalBeforeMembership,
+        membershipDiscount, membershipFee, subtotalAfterMembership,
+        membershipThresholdMet: meetsThreshold, membershipMinSubtotal: m.minSubtotal || 0, orderSubtotal: orderSubtotal,
+        deliveryCost, installationCost, total
+      };
     }
 
     let FORM_DATA = {};
@@ -553,58 +564,59 @@
 
     // notifySiblings=true เมื่อรายการนี้เปลี่ยนค่าเอง (ต้องอัปเดตยอดขั้นต่ำของรายการอื่นตาม)
     // notifySiblings=false เมื่อถูกเรียกให้รีเฟรชเพราะรายการอื่นเปลี่ยน (กันการวนเรียกไม่รู้จบ)
-    // ยิงไป Apps Script (calculatePrice) ทุกครั้งที่คำนวณ เหมือนเดิมก่อนหน้านี้ — runCalculation()
-    // ด้านบนมี debounce 200ms คอยกันไม่ให้ยิงรัวทุกตัวอักษรที่พิมพ์อยู่แล้ว
+    // คำนวณฝั่ง client ทันที (calculatePriceLocal) ไม่ยิง request ไป Apps Script ทุกครั้งที่พิมพ์แล้ว —
+    // ข้อมูล tier/rate ถูกดึงมาครั้งเดียวตอนโหลดหน้า (FORM_DATA จาก getFormOptions) ยังคงยึด Google Sheet
+    // เป็นแหล่งข้อมูลจริงอยู่ ส่วน runCalculation() ด้านบนมี debounce 200ms กันไม่ให้คำนวณรัวเกินไป
     function doCalc(id, notifySiblings){
       const errEl = document.getElementById('err-' + id);
       if (!errEl) return; // ถูกลบไปแล้ว
       errEl.style.display='none';
       const input = buildInput(id);
       if (!input.product) return;
-      callApi('calculatePrice', input)
-        .then(function(r){
-          if (r && r.error) throw new Error(r.error);
-          if (!document.getElementById('item-' + id)) return; // ถูกลบก่อนผลกลับมา
-          // แสดงเฉพาะบรรทัดที่มีค่า — อันไหนเป็น 0 / ยังไม่กรอก ซ่อนไว้
-          let shown = 0;
-          function setLine(key, value, text){
-            const el = document.getElementById('r-' + key + '-' + id);
-            if (!el) return;
-            const show = Math.abs(Number(value) || 0) > 0.0001;
-            el.textContent = show ? text : '';
-            el.closest('.line').style.display = show ? 'flex' : 'none';
-            if (show) shown++;
-          }
-          setLine('size', r.size, Number(r.size||0).toLocaleString('en-US') + ' cm²');
-          setLine('generic', r.genericPrice, baht(r.genericPrice));
-          setLine('material', r.materialCost, baht(r.materialCost));
-          setLine('difficulty', r.difficultyCost, baht(r.difficultyCost));
-          setLine('fasttrack', r.fastTrackCost, baht(r.fastTrackCost));
-          setLine('frame', r.frameCost, baht(r.frameCost));
-          setLine('subtotal', r.subtotalBeforeMembership, baht(r.subtotalBeforeMembership));
-          setLine('discount', r.membershipDiscount, '-' + baht(r.membershipDiscount));
-          setLine('fee', r.membershipFee, baht(r.membershipFee));
-          const thNote = document.getElementById('thresholdNote-' + id);
-          if (thNote) {
-            const showTh = r.membershipThresholdMet === false && r.membershipMinSubtotal > 0;
-            thNote.style.display = showTh ? 'block' : 'none';
-            if (showTh) thNote.textContent = 'ยอดรวมทั้งหมดยังไม่ถึงขั้นต่ำ ' + Number(r.membershipMinSubtotal).toLocaleString('en-US') + ' บาท — ยังไม่ได้ส่วนลดสมาชิกระดับนี้';
-          }
-          setLine('delivery', r.deliveryCost, baht(r.deliveryCost));
-          setLine('install', r.installationCost, baht(r.installationCost));
-          setLine('total', r.total, baht(r.total));
-          document.querySelector('#item-' + id + ' .breakdown').style.display = shown ? 'block' : 'none';
-          itemResults[id] = r;
-          updateGrandTotal();
-          // ยอดของรายการนี้เปลี่ยน อาจทำให้รายการอื่นข้ามขั้นต่ำสมาชิกได้/ไม่ได้ตาม ต้องรีเฟรชรายการอื่นด้วย
-          if (notifySiblings) {
-            currentItemIds().filter(k => String(k) !== String(id)).forEach(k => doCalc(k, false));
-          }
-        })
-        .catch(function(e){
-          errEl.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
-          errEl.style.display='block';
-        });
+      let r;
+      try {
+        r = calculatePriceLocal(input);
+      } catch (e) {
+        errEl.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
+        errEl.style.display='block';
+        return;
+      }
+      if (!document.getElementById('item-' + id)) return; // ถูกลบไปแล้วระหว่างคำนวณ
+      // แสดงเฉพาะบรรทัดที่มีค่า — อันไหนเป็น 0 / ยังไม่กรอก ซ่อนไว้
+      let shown = 0;
+      function setLine(key, value, text){
+        const el = document.getElementById('r-' + key + '-' + id);
+        if (!el) return;
+        const show = Math.abs(Number(value) || 0) > 0.0001;
+        el.textContent = show ? text : '';
+        el.closest('.line').style.display = show ? 'flex' : 'none';
+        if (show) shown++;
+      }
+      setLine('size', r.size, Number(r.size||0).toLocaleString('en-US') + ' cm²');
+      setLine('generic', r.genericPrice, baht(r.genericPrice));
+      setLine('material', r.materialCost, baht(r.materialCost));
+      setLine('difficulty', r.difficultyCost, baht(r.difficultyCost));
+      setLine('fasttrack', r.fastTrackCost, baht(r.fastTrackCost));
+      setLine('frame', r.frameCost, baht(r.frameCost));
+      setLine('subtotal', r.subtotalBeforeMembership, baht(r.subtotalBeforeMembership));
+      setLine('discount', r.membershipDiscount, '-' + baht(r.membershipDiscount));
+      setLine('fee', r.membershipFee, baht(r.membershipFee));
+      const thNote = document.getElementById('thresholdNote-' + id);
+      if (thNote) {
+        const showTh = r.membershipThresholdMet === false && r.membershipMinSubtotal > 0;
+        thNote.style.display = showTh ? 'block' : 'none';
+        if (showTh) thNote.textContent = 'ยอดรวมทั้งหมดยังไม่ถึงขั้นต่ำ ' + Number(r.membershipMinSubtotal).toLocaleString('en-US') + ' บาท — ยังไม่ได้ส่วนลดสมาชิกระดับนี้';
+      }
+      setLine('delivery', r.deliveryCost, baht(r.deliveryCost));
+      setLine('install', r.installationCost, baht(r.installationCost));
+      setLine('total', r.total, baht(r.total));
+      document.querySelector('#item-' + id + ' .breakdown').style.display = shown ? 'block' : 'none';
+      itemResults[id] = r;
+      updateGrandTotal();
+      // ยอดของรายการนี้เปลี่ยน อาจทำให้รายการอื่นข้ามขั้นต่ำสมาชิกได้/ไม่ได้ตาม ต้องรีเฟรชรายการอื่นด้วย
+      if (notifySiblings) {
+        currentItemIds().filter(k => String(k) !== String(id)).forEach(k => doCalc(k, false));
+      }
     }
 
     function updateGrandTotal(){
@@ -718,12 +730,13 @@
         .then(function(data){
           done = true; clearTimeout(timeoutId);
           if (data && data.error) throw new Error(data.error);
+          if (!data || !Object.keys(data).length) throw new Error('เซิร์ฟเวอร์ตอบกลับว่าง — ตรวจชีต PRICE_SETTING ว่ามีอยู่จริงและ SPREADSHEET_ID ใน Code.gs ถูกต้อง');
           FORM_DATA = data;
           if (!document.querySelector('#itemsContainer > .card')) addItem(); // เริ่มต้น 1 รายการ
         })
         .catch(function(e){
           done = true; clearTimeout(timeoutId);
-          showConnectionError('เซิร์ฟเวอร์แจ้ง error: ' + e.message + ' (เช็ค API_URL / API_KEY ให้ตรงกับ Code.gs)');
+          showConnectionError(e.message);
         });
     }
 
