@@ -123,8 +123,9 @@
 <body>
 <!-- ===== Mergee Auth Gate (Google Sign-In) — เพิ่มโดย Claude ===== -->
 <!-- ชั้นนี้แยกต่างหากจากด่านรหัสผ่านด้านล่าง (#gate) — z-index สูงกว่ามาก จึงบังทุกอย่างรวม
-     ทั้งด่านรหัสผ่านไว้จนกว่าจะล็อกอิน Google ผ่านก่อน แล้วค่อยเจอด่านรหัสผ่านตามปกติ (ซึ่งยังคง
-     จำไว้ถาวรเหมือนเดิมตาม PW_KEY ที่มีอยู่แล้ว — การจำ 8 ชม. มีผลกับ Google Sign-In เท่านั้น) -->
+     ทั้งด่านรหัสผ่านไว้จนกว่าจะล็อกอิน Google ผ่านก่อน แล้วค่อยเจอด่านรหัสผ่านตามปกติ ซึ่งตอนนี้ไม่จำ
+     การปลดล็อกอีกต่อไป ต้องใส่รหัสผ่านใหม่ทุกครั้ง แม้จะเพิ่งผ่าน Google Sign-In มาก็ตาม — การจำ 8 ชม.
+     มีผลกับ Google Sign-In เท่านั้น สองด่านนี้เป็นอิสระต่อกัน -->
 <div id="mergee-auth-gate" style="position:fixed;inset:0;background:#1a1a2e;display:flex;align-items:center;justify-content:center;z-index:999999;padding:20px;font-family:'Sarabun',sans-serif">
   <div style="background:#fff;border-radius:16px;padding:32px 28px;max-width:340px;width:100%;text-align:center">
     <div style="font-size:22px;font-weight:600;color:#1a1a2e;margin-bottom:6px">Mergee</div>
@@ -722,15 +723,14 @@
         });
     }
 
-    // ===== ด่านรหัสผ่าน (จำไว้ในเครื่องนี้ตลอดไปจนกว่าจะล้าง browser data) =====
+    // ===== ด่านรหัสผ่าน (ไม่จำการปลดล็อกไว้เลย — ต้องใส่รหัสผ่านใหม่ทุกครั้งที่เปิด/รีเฟรชหน้านี้
+    // แม้จะผ่านเกต Google Sign-In มาแล้วก็ตาม — สองด่านนี้เป็นอิสระต่อกัน) =====
     const PASSWORDS = ['M4599', 'Staff002'];
-    const PW_KEY = 'painting_calc_pw_ok';
 
     function checkPassword(){
       const val = document.getElementById('pwInput').value;
       const err = document.getElementById('pwError');
       if (PASSWORDS.indexOf(val) !== -1) {
-        localStorage.setItem(PW_KEY, '1');
         err.textContent = '';
         hideGateAndStart();
       } else {
@@ -748,10 +748,7 @@
       startApp();
     }
 
-    window.addEventListener('load', function(){
-      if (localStorage.getItem(PW_KEY) === '1') { hideGateAndStart(); return; }
-      // ยังไม่เคยผ่านรหัสผ่าน -> อยู่ที่หน้ารหัสผ่าน (ค่าเริ่มต้นของ #gate อยู่แล้ว)
-    });
+    // ไม่มีการเช็ค localStorage ตอนโหลดหน้าอีกต่อไป — อยู่ที่หน้ารหัสผ่านเสมอ (ค่าเริ่มต้นของ #gate)
   </script>
 </body>
 </html>
