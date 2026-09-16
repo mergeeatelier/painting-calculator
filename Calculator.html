@@ -283,6 +283,100 @@
       }).then(r=>r.json());
     }
 
+    // ===== คำนวณราคาที่ฝั่งเว็บทั้งหมด (PERF: เดิมยิง callApi('calculatePrice', input) ไป Apps
+    // Script ทุกครั้งที่ผู้ใช้แก้ไขฟอร์ม แต่ละครั้งมี network overhead จริงหลักร้อย ms ถึง 1-2 วินาที
+    // ทำให้รู้สึกหน่วง — ตอนนี้ดึงตารางราคา/tier ทั้งหมดมาครั้งเดียวตอนโหลดหน้า (ผ่าน getFormOptions
+    // ที่ Code.gs ส่งกลับมาเพิ่มแล้ว: sizeTiers/fastTrackTiers/frameTiers/deliveryBangkokRate/
+    // addonTierBy) แล้วคำนวณเองที่นี่ทันที ไม่ต้องรอ network เลยระหว่างกรอกฟอร์ม
+    //
+    // สูตรนี้ต้อง "ตรงกับ" calculatePrice() ฝั่ง Code.gs เป๊ะๆ เพราะตอนกด submit/สร้าง PDF จริง
+    // server จะคำนวณซ้ำอีกทีเพื่อยืนยันราคา (ไม่เชื่อเลขจาก client) — ถ้าแก้สูตรฝั่งใดฝั่งหนึ่ง
+    // ต้องแก้อีกฝั่งให้ตรงกันด้วย ไม่งั้นราคาที่โชว์ระหว่างกรอกกับราคาที่บันทึกจริงจะไม่ตรงกัน
+    function round2(n) { return Math.round((Number(n) || 0) * 100) / 100; }
+
+    function lookupTier(tiers, key) {
+      for (let i = 0; i < tiers.length; i++) {
+        const t = tiers[i];
+        if (key >= t.min && key <= t.max) return t.value;
+      }
+      return tiers.length ? tiers[tiers.length - 1].value : 0;
+    }
+
+    function calculatePriceLocal(input){
+      const p = FORM_DATA[input.product];
+      if (!p) throw new Error('ไม่รู้จักประเภทงานนี้');
+
+      const width = Number(input.width) || 0;
+      const height = Number(input.height) || 0;
+      const size = round2(width * height);
+
+      // 1) ราคาตามขนาด
+      const pricePerCm2 = lookupTier(p.sizeTiers || [], size);
+      const genericPrice = round2(size * pricePerCm2);
+
+      // 2) Material / Difficulty
+      const materialRate = (p.material && p.material[input.material]) || 0;
+      const difficultyRate = (p.difficulty && p.difficulty[input.difficulty]) || 0;
+      const materialCost = round2(genericPrice * materialRate);
+      const difficultyCost = round2(genericPrice * difficultyRate);
+
+      // 3) Fast-Track / Frame
+      const tierKeyForAddon = p.addonTierBy === 'genericPrice' ? genericPrice : size;
+
+      let fastTrackCost = 0;
+      if (input.fastTrack) {
+        const v = lookupTier(p.fastTrackTiers || [], tierKeyForAddon);
+        fastTrackCost = v < 1 ? round2(genericPrice * v) : round2(v);
+      }
+      let frameCost = 0;
+      if (input.frame) {
+        const v = lookupTier(p.frameTiers || [], tierKeyForAddon);
+        frameCost = v < 1 ? round2(genericPrice * v) : round2(v);
+      }
+
+      const subtotalBeforeMembership = round2(
+        genericPrice + materialCost + difficultyCost + fastTrackCost + frameCost
+      );
+
+      // 4) Membership
+      const m = (p.membership && p.membership[input.membership]) || { percent: 0, fee: 0, minSubtotal: 0 };
+      const otherItemsSubtotal = Number(input.otherItemsSubtotal) || 0;
+      const orderSubtotal = round2(subtotalBeforeMembership + otherItemsSubtotal);
+      const meetsThreshold = !m.minSubtotal || orderSubtotal >= m.minSubtotal;
+      const membershipDiscount = round2(subtotalBeforeMembership * (meetsThreshold ? m.percent : 0));
+      const membershipFee = meetsThreshold ? (m.fee || 0) : 0;
+      const subtotalAfterMembership = round2(
+        subtotalBeforeMembership - membershipDiscount + membershipFee
+      );
+
+      // 5) Delivery
+      let deliveryCost = 0;
+      const isMember = !!input.membership && String(input.membership).trim().toLowerCase() !== 'none member';
+      if (input.deliveryZone === 'bangkok') {
+        const baseRate = Number(p.deliveryBangkokRate) || 0;
+        deliveryCost = isMember ? round2(baseRate * 0.5) : baseRate;
+      } else if (input.deliveryZone === 'domestic') {
+        const actualCost = Number(input.domesticActualCost) || 0;
+        deliveryCost = isMember ? round2(actualCost * 0.5) : actualCost;
+      } else if (input.deliveryZone === 'international') {
+        deliveryCost = Number(input.internationalActualCost) || 0;
+      }
+
+      // 6) Installation
+      const installationCost = input.installation ? (Number(input.installationActualCost) || 0) : 0;
+
+      const total = round2(subtotalAfterMembership + deliveryCost + installationCost);
+
+      return {
+        size, pricePerCm2, genericPrice,
+        materialCost, difficultyCost, fastTrackCost, frameCost,
+        subtotalBeforeMembership,
+        membershipDiscount, membershipFee, subtotalAfterMembership,
+        membershipThresholdMet: meetsThreshold, membershipMinSubtotal: m.minSubtotal || 0, orderSubtotal: orderSubtotal,
+        deliveryCost, installationCost, total
+      };
+    }
+
     let FORM_DATA = {};
     let itemCounter = 0;
     let itemResults = {};   // id -> result object
@@ -553,56 +647,60 @@
 
     // notifySiblings=true เมื่อรายการนี้เปลี่ยนค่าเอง (ต้องอัปเดตยอดขั้นต่ำของรายการอื่นตาม)
     // notifySiblings=false เมื่อถูกเรียกให้รีเฟรชเพราะรายการอื่นเปลี่ยน (กันการวนเรียกไม่รู้จบ)
+    // PERF: คำนวณด้วย calculatePriceLocal() ในเครื่องทันที ไม่ยิงไป Apps Script อีกต่อไป (ดูคอมเมนต์
+    // ที่ calculatePriceLocal ด้านบน) จึงไม่มี network round-trip / ไม่ต้องรอ .then() แบบเดิม
     function doCalc(id, notifySiblings){
       const errEl = document.getElementById('err-' + id);
       if (!errEl) return; // ถูกลบไปแล้ว
       errEl.style.display='none';
       const input = buildInput(id);
       if (!input.product) return;
-      callApi('calculatePrice', input)
-        .then(function(r){
-          if (r && r.error) throw new Error(r.error);
-          if (!document.getElementById('item-' + id)) return; // ถูกลบก่อนผลกลับมา
-          // แสดงเฉพาะบรรทัดที่มีค่า — อันไหนเป็น 0 / ยังไม่กรอก ซ่อนไว้
-          let shown = 0;
-          function setLine(key, value, text){
-            const el = document.getElementById('r-' + key + '-' + id);
-            if (!el) return;
-            const show = Math.abs(Number(value) || 0) > 0.0001;
-            el.textContent = show ? text : '';
-            el.closest('.line').style.display = show ? 'flex' : 'none';
-            if (show) shown++;
-          }
-          setLine('size', r.size, Number(r.size||0).toLocaleString('en-US') + ' cm²');
-          setLine('generic', r.genericPrice, baht(r.genericPrice));
-          setLine('material', r.materialCost, baht(r.materialCost));
-          setLine('difficulty', r.difficultyCost, baht(r.difficultyCost));
-          setLine('fasttrack', r.fastTrackCost, baht(r.fastTrackCost));
-          setLine('frame', r.frameCost, baht(r.frameCost));
-          setLine('subtotal', r.subtotalBeforeMembership, baht(r.subtotalBeforeMembership));
-          setLine('discount', r.membershipDiscount, '-' + baht(r.membershipDiscount));
-          setLine('fee', r.membershipFee, baht(r.membershipFee));
-          const thNote = document.getElementById('thresholdNote-' + id);
-          if (thNote) {
-            const showTh = r.membershipThresholdMet === false && r.membershipMinSubtotal > 0;
-            thNote.style.display = showTh ? 'block' : 'none';
-            if (showTh) thNote.textContent = 'ยอดรวมทั้งหมดยังไม่ถึงขั้นต่ำ ' + Number(r.membershipMinSubtotal).toLocaleString('en-US') + ' บาท — ยังไม่ได้ส่วนลดสมาชิกระดับนี้';
-          }
-          setLine('delivery', r.deliveryCost, baht(r.deliveryCost));
-          setLine('install', r.installationCost, baht(r.installationCost));
-          setLine('total', r.total, baht(r.total));
-          document.querySelector('#item-' + id + ' .breakdown').style.display = shown ? 'block' : 'none';
-          itemResults[id] = r;
-          updateGrandTotal();
-          // ยอดของรายการนี้เปลี่ยน อาจทำให้รายการอื่นข้ามขั้นต่ำสมาชิกได้/ไม่ได้ตาม ต้องรีเฟรชรายการอื่นด้วย
-          if (notifySiblings) {
-            currentItemIds().filter(k => String(k) !== String(id)).forEach(k => doCalc(k, false));
-          }
-        })
-        .catch(function(e){
-          errEl.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
-          errEl.style.display='block';
-        });
+
+      let r;
+      try {
+        r = calculatePriceLocal(input);
+      } catch (e) {
+        errEl.textContent = 'เกิดข้อผิดพลาด: ' + e.message;
+        errEl.style.display='block';
+        return;
+      }
+
+      if (!document.getElementById('item-' + id)) return; // ถูกลบไปแล้วระหว่างนี้
+      // แสดงเฉพาะบรรทัดที่มีค่า — อันไหนเป็น 0 / ยังไม่กรอก ซ่อนไว้
+      let shown = 0;
+      function setLine(key, value, text){
+        const el = document.getElementById('r-' + key + '-' + id);
+        if (!el) return;
+        const show = Math.abs(Number(value) || 0) > 0.0001;
+        el.textContent = show ? text : '';
+        el.closest('.line').style.display = show ? 'flex' : 'none';
+        if (show) shown++;
+      }
+      setLine('size', r.size, Number(r.size||0).toLocaleString('en-US') + ' cm²');
+      setLine('generic', r.genericPrice, baht(r.genericPrice));
+      setLine('material', r.materialCost, baht(r.materialCost));
+      setLine('difficulty', r.difficultyCost, baht(r.difficultyCost));
+      setLine('fasttrack', r.fastTrackCost, baht(r.fastTrackCost));
+      setLine('frame', r.frameCost, baht(r.frameCost));
+      setLine('subtotal', r.subtotalBeforeMembership, baht(r.subtotalBeforeMembership));
+      setLine('discount', r.membershipDiscount, '-' + baht(r.membershipDiscount));
+      setLine('fee', r.membershipFee, baht(r.membershipFee));
+      const thNote = document.getElementById('thresholdNote-' + id);
+      if (thNote) {
+        const showTh = r.membershipThresholdMet === false && r.membershipMinSubtotal > 0;
+        thNote.style.display = showTh ? 'block' : 'none';
+        if (showTh) thNote.textContent = 'ยอดรวมทั้งหมดยังไม่ถึงขั้นต่ำ ' + Number(r.membershipMinSubtotal).toLocaleString('en-US') + ' บาท — ยังไม่ได้ส่วนลดสมาชิกระดับนี้';
+      }
+      setLine('delivery', r.deliveryCost, baht(r.deliveryCost));
+      setLine('install', r.installationCost, baht(r.installationCost));
+      setLine('total', r.total, baht(r.total));
+      document.querySelector('#item-' + id + ' .breakdown').style.display = shown ? 'block' : 'none';
+      itemResults[id] = r;
+      updateGrandTotal();
+      // ยอดของรายการนี้เปลี่ยน อาจทำให้รายการอื่นข้ามขั้นต่ำสมาชิกได้/ไม่ได้ตาม ต้องรีเฟรชรายการอื่นด้วย
+      if (notifySiblings) {
+        currentItemIds().filter(k => String(k) !== String(id)).forEach(k => doCalc(k, false));
+      }
     }
 
     function updateGrandTotal(){
