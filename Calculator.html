@@ -62,7 +62,7 @@
       margin-top:6px; padding-top:10px; color:var(--accent);}
     .line.total > span:last-child{color:var(--accent); font-size:15px;}
     .line .th{display:block; font-size:10px; font-weight:400; color:var(--muted); margin-top:1px;}
-    #itemsContainer .th[id^="thresholdNote-"]{font-size:9.5px; line-height:1.35;}
+    #itemsContainer .th[id^="thresholdNote-"]{font-size:10.5px; line-height:1.35;}
     .line.total .th{font-size:10.5px;}
     .line.discount > span:last-child{color:var(--accent2);}
     .line.grand{border-top:2px solid var(--ink); border-bottom:none; font-weight:700; font-size:20px;
@@ -105,13 +105,14 @@
       margin:0 auto; padding:24px 20px; box-shadow:0 10px 30px rgba(60,45,20,.2);}
     .quote h2{font-size:18px; margin:0 0 2px; letter-spacing:.02em;}
     .quote .meta{font-size:12px; color:var(--muted); margin-bottom:16px;}
-    .qitem{border-top:1px dashed var(--line); padding:10px 0; overflow:hidden;}
+    .qitem{border-top:1px dashed var(--line); padding:10px 0; display:flex; gap:10px; align-items:flex-start;}
+    .qcol{flex:1; min-width:0;}
     .qthumb{width:44px; height:44px; object-fit:cover; border-radius:6px; border:1px solid var(--line);
-      float:left; margin:0 10px 6px 0;}
+      flex-shrink:0;}
     .qitem-head{display:flex; justify-content:space-between; gap:12px; font-weight:700; font-size:13px;}
     .qitem-head span:last-child{white-space:nowrap;}
     .qitem-spec{font-size:11.5px; color:var(--muted); margin-top:3px;}
-    .qbreak{margin-top:6px; padding-left:0;}
+    .qbreak{margin-top:6px;}
     .qbreak div{display:flex; justify-content:space-between; gap:12px; font-size:11.5px;
       color:var(--muted); padding:1.5px 0;}
     .qbreak div span:last-child{white-space:nowrap; font-variant-numeric:tabular-nums;}
@@ -662,9 +663,11 @@
         ].filter(Boolean).join(' · ');
         return `<div class="qitem">
           ${itemImages[id] && itemImages[id].dataUrl ? `<img class="qthumb" src="${itemImages[id].dataUrl}" alt="">` : ''}
-          <div class="qitem-head"><span>${i+1}. ${esc(inp.itemName) || 'Untitled item'}</span><span>${baht(r.total)}</span></div>
-          <div class="qitem-spec">${esc(specs)}</div>
-          ${breakdownHtml(r)}
+          <div class="qcol">
+            <div class="qitem-head"><span>${i+1}. ${esc(inp.itemName) || 'Untitled item'}</span><span>${baht(r.total)}</span></div>
+            <div class="qitem-spec">${esc(specs)}</div>
+            ${breakdownHtml(r)}
+          </div>
         </div>`;
       }).join('');
 
@@ -732,16 +735,10 @@
         .then(function(res){
           if (res && res.error) throw new Error(res.error);
           btn.disabled = false;
-          // เบราว์เซอร์มือถือบล็อก window.open()/window.print() ที่เรียกหลัง async
-          // จึงแสดงปุ่มให้ผู้ใช้กดเอง (การกดนับเป็น user gesture เปิด/พิมพ์ได้แน่นอน)
-          msg.innerHTML = 'Saved ✓ Grand Total ' + baht(res.grandTotal) + ' · บันทึกเรียบร้อย ' + res.itemCount + ' รายการ' +
-            '<span style="display:flex; gap:8px; margin-top:8px;">' +
-            '<a href="' + res.url + '" target="_blank" rel="noopener" style="flex:1; background:#fff; color:#b5652f;' +
-            'border-radius:999px; padding:10px 14px; font-weight:700; text-align:center; text-decoration:none; font-size:13px;">' +
-            'เปิด / พิมพ์ PDF</a>' +
-            '<button type="button" onclick="window.print()" style="flex:1; width:auto; background:transparent; color:#fff;' +
-            'border:1px solid #fff; border-radius:999px; padding:10px 14px; font-weight:700; font-size:13px; margin:0;">' +
-            'พิมพ์หน้านี้</button></span>';
+          msg.innerHTML = 'Saved ✓ Grand Total ' + baht(res.grandTotal) + ' (บันทึกเรียบร้อย ' + res.itemCount +
+            ' รายการ) · <a href="' + res.url + '" target="_blank" style="color:#fff; text-decoration:underline;">เปิดดู PDF ใน Drive</a>';
+          window.open(res.url, '_blank');
+          window.print(); // เสร็จแล้วเปิดหน้าต่างสั่งพิมพ์ต่อทันที (พิมพ์เฉพาะส่วนใบเสนอราคา ตาม @media print ด้านบน)
         })
         .catch(function(e){
           btn.disabled = false;
