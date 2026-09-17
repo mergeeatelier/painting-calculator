@@ -369,7 +369,7 @@
       );
 
       let deliveryCost = 0;
-      const isMember = !!input.membership && String(input.membership).trim().toLowerCase() !== 'none member';
+      const isMember = !!input.membership && String(input.membership).trim().toLowerCase() !== 'non member';
       if (input.deliveryZone === 'bangkok') {
         const baseRate = p.deliveryBangkokRate || 0;
         deliveryCost = isMember ? round2(baseRate * 0.5) : baseRate;
@@ -521,7 +521,7 @@
       const zoneEl = document.querySelector(`input[name=delivery-${id}]:checked`);
       const zone = zoneEl ? zoneEl.value : 'pickup';
       const membershipVal = document.getElementById('membership-' + id).value;
-      const isMember = !!membershipVal && membershipVal.trim().toLowerCase() !== 'none member';
+      const isMember = !!membershipVal && membershipVal.trim().toLowerCase() !== 'non member';
       const tag = isMember ? 'ลด 50%' : '';
       const bTag = document.getElementById('bangkokTag-' + id);
       const dTag = document.getElementById('domesticTag-' + id);
